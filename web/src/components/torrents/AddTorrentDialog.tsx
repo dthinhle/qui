@@ -45,6 +45,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query"
 import { AlertCircle, Link, Loader2, Plus, Upload, X } from "lucide-react"
 import parseTorrent from "parse-torrent"
 import { useCallback, useEffect, useRef, useState } from "react"
+import { useDropzone } from "react-dropzone"
 
 // Extract info hash from magnet link
 function extractHashFromMagnet(magnetUrl: string): string | null {
@@ -798,34 +799,51 @@ export function AddTorrentDialog({ instanceId, open: controlledOpen, onOpenChang
                       },
                     }}
                   >
-                    {(field) => (
-                      <div className="space-y-2">
-                        <Label htmlFor="torrentFiles">Torrent Files</Label>
-                        <Input
-                          ref={fileInputRef}
-                          id="torrentFiles"
-                          type="file"
-                          accept=".torrent"
-                          multiple
-                          className="sr-only"
-                          onChange={(e) => {
-                            const files = e.target.files ? Array.from(e.target.files) : null
-                            field.handleChange(files)
-                            // Check for duplicates when files are selected
-                            if (files) {
-                              checkForDuplicates(files, "")
-                            }
-                          }}
-                        />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="w-full"
-                        >
-                          <Upload className="mr-2 h-4 w-4" />
-                          Browse for Torrent Files
-                        </Button>
+                    {(field) => {
+                      const onDrop = (acceptedFiles: File[]) => {
+                        const existingFiles = field.state.value || []
+                        const allFiles = [...existingFiles, ...acceptedFiles]
+                        field.handleChange(allFiles.length > 0 ? allFiles : null)
+                        // Check for duplicates when files are dropped
+                        if (allFiles.length > 0) {
+                          checkForDuplicates(allFiles, "")
+                        }
+                      }
+
+                      const { getRootProps, getInputProps, isDragActive } = useDropzone({
+                        onDrop,
+                        accept: {
+                          'application/x-bittorrent': ['.torrent']
+                        },
+                        multiple: true,
+                        noClick: false,
+                      })
+
+                      return (
+                        <div className="space-y-2">
+                          <Label htmlFor="torrentFiles">Torrent Files</Label>
+                          <div
+                            {...getRootProps()}
+                            className={cn(
+                              "border-2 border-dashed rounded-md p-6 cursor-pointer transition-colors",
+                              isDragActive
+                                ? "border-primary bg-primary/10"
+                                : "border-border hover:border-primary/50 hover:bg-accent/50"
+                            )}
+                          >
+                            <input {...getInputProps()} ref={fileInputRef} id="torrentFiles" />
+                            <div className="flex flex-col items-center justify-center text-center space-y-2">
+                              <Upload className="h-8 w-8 text-muted-foreground" />
+                              {isDragActive ? (
+                                <p className="text-sm font-medium">Drop the torrent files here...</p>
+                              ) : (
+                                <>
+                                  <p className="text-sm font-medium">Drag & drop torrent files here</p>
+                                  <p className="text-xs text-muted-foreground">or click to browse</p>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         {field.state.value && field.state.value.length > 0 && (
                           <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                             <span>
@@ -909,7 +927,7 @@ export function AddTorrentDialog({ instanceId, open: controlledOpen, onOpenChang
                           <p className="text-sm text-destructive">{field.state.meta.errors[0]}</p>
                         )}
                       </div>
-                    )}
+                    )}}
                   </form.Field>
                 ) : (
                   <form.Field
